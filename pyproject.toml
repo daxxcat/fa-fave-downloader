@@ -29,6 +29,12 @@ maintainers = [
     {name = "Lex", email = "daxxcat@icloud.com"},
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=9.0.0",
+    "pytest-cov>=7.0.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/yourusername/fa-fave-downloader"
 Repository = "https://github.com/yourusername/fa-fave-downloader"

@@ -23,10 +23,20 @@ pip install -e .
 ## Usage
 After installation, run the tool:
 ```bash
-fa-fave-downloader
+fa-fave-downloader -h
+
+usage: fa-fave-downloader [-h] --username USERNAME [--save-path SAVE_PATH]
+
+FurAffinity favourite downloader
+
+options:
+  -h, --help            show this help message and exit
+  --username, -u USERNAME
+                        REQUIRED: Fur Affinity username to download favorites from
+  --save-path, -p SAVE_PATH
+                        Directory to save images (default: ./save)
 ```
 
 ## Development
 - Run tests: `python -m pytest`
 - Build: `python -m build`
-- Publish: `twine upload dist/*`

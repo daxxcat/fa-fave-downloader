@@ -121,8 +121,10 @@ def download_favorite(url, save_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FA Fave Downloader")
-    parser.add_argument('--username', '-u', help='Fur Affinity username to download favorites from', required=True)
+    parser = argparse.ArgumentParser(
+        prog='fa-fave-downloader',
+        description="FurAffinity favourite downloader")
+    parser.add_argument('--username', '-u', help='REQUIRED: Fur Affinity username to download favorites from', required=True)
     parser.add_argument('--save-path', '-p', default=os.path.join(os.getcwd(), 'output'), help='Directory to save images (default: ./save)')
     args = parser.parse_args()
 
