@@ -39,4 +39,5 @@ options:
 
 ## Development
 - Run tests: `python -m pytest`
+- Lint code: `flake8 ./src`
 - Build: `python -m build`

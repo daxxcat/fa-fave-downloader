@@ -33,6 +33,7 @@ maintainers = [
 test = [
     "pytest>=9.0.0",
     "pytest-cov>=7.0.0",
+    "flake8>=7.0.0",
 ]
 
 [project.urls]
