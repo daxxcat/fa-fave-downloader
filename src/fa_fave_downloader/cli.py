@@ -1,17 +1,35 @@
-#!/usr/bin/env python3
 """
 Command-line interface for FA Fave Downloader.
 """
 import argparse
 import os
 import re
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from __init__ import __version__
 
 # Constants
 FA_URL = "https://www.furaffinity.net"
 
+def get_favorite_image_urls_inner(gallery_favorites):
+    """
+    Inner function for getting favorite image urls from FA Favorites object.
+
+    :param gallery_favorites: favorites object
+    :return: a list of image urls
+    """
+    favourites_url = []
+    for a in gallery_favorites.find_all('a'):
+        if a.find('img'):
+            href = a.get('href')
+            if href:
+                # Ensure full URL
+                if href.startswith('/'):
+                    href = FA_URL + href
+                favourites_url.append(href)
+    return favourites_url
 
 def get_favorite_image_urls(username):
     """
@@ -23,6 +41,7 @@ def get_favorite_image_urls(username):
     Returns:
         list: List of image URLs found in the gallery-favorites section.
     """
+    print(f"Retrieving favorite image URLs for user: {username} ...")
     url = f"{FA_URL}/favorites/{username}/"
     response = requests.get(url)
     response.raise_for_status()
@@ -32,23 +51,59 @@ def get_favorite_image_urls(username):
     if not gallery_favorites:
         return []
 
-    favourites_url = []
-    for a in gallery_favorites.find_all('a'):
-        if a.find('img'):
-            href = a.get('href')
-            if href:
-                # Ensure full URL
-                if href.startswith('/'):
-                    href = FA_URL + href
-                favourites_url.append(href)
+    favourites_url = get_favorite_image_urls_inner(gallery_favorites)
 
+    # Check for pagination
+    next_page_url = get_next_page_url(f"{FA_URL}/favorites/{username}/")
+    while next_page_url:
+        response = requests.get(next_page_url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        gallery_favorites = soup.find('section', id='gallery-favorites')
+        if not gallery_favorites:
+            break
+        favourites_url += get_favorite_image_urls_inner(gallery_favorites)
+        # Get next page
+        next_page_url = get_next_page_url(next_page_url)
+
+    print(f"Found {len(favourites_url)} favorite image URLs for user: {username}")
     return favourites_url
+
+
+def get_next_page_url(url):
+    """
+    Check if there is a 'Next' button on the favorites page and return the URL to the next page if found.
+
+    Args:
+        url (str): The URL of the favorites page to check.
+
+    Returns:
+        str or None: The URL of the next page if a 'Next' button is found, otherwise None.
+    """
+    response = requests.get(url)
+    response.raise_for_status()
+
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # Look for a form containing a button with text 'Next' (case-insensitive)
+    next_form = soup.find('form', method='get', action=lambda text: text and 'next' in text.lower())
+    if next_form:
+        href = next_form.get('action')
+        if href:
+            # Ensure full URL
+            if href.startswith('/'):
+                href = FA_URL + href
+            return href
+
+    return None
 
 
 def sanitize_filename(name):
     """Sanitize filename by replacing invalid characters with underscores and consecutive spaces with a single dash."""
     # First replace invalid characters with underscores
     name = re.sub(r'[^\w\-_\. ]', '_', name)
+    # Trim spaces where ' - ' is used
+    name = re.sub(r' - ', '-', name)
     # Replace consecutive spaces with a single dash
     name = re.sub(r'\s+', '-', name)
     return name
@@ -64,6 +119,7 @@ def download_favorite(url, save_path):
 
     Returns:
         str: The filepath where the favourite image was downloaded, or None if failed.
+        bool: True if the image was already downloaded, False otherwise.
     """
     # Get the image url
     response = requests.get(url)
@@ -71,21 +127,36 @@ def download_favorite(url, save_path):
 
     soup = BeautifulSoup(response.text, 'html.parser')
 
+    # Check for login screen
+    if "Login Required" in soup.text:
+        print(f"Login required to download image: {url}")
+        return None, False
+
     # Get the image download section
     download_div = soup.find('div', class_='download')
     if not download_div:
-        return None
-    # Get image url
-    favourites_url = download_div.find('a').get('href')
-    if not favourites_url:
-        return None
-    elif favourites_url.startswith('//'):
-        favourites_url = 'https:' + favourites_url
+        # Fallback to mobile download link if desktop download section is not found
+        download_link = soup.find('a', string=lambda text: text and 'download' in text.lower(), href=True)
+        if download_link:
+            favourites_url = download_link.get('href')
+            if not favourites_url:
+                return None, False
+            if favourites_url.startswith('//'):
+                favourites_url = 'https:' + favourites_url
+        else:
+            return None, False
+    else:
+        # Get image url
+        favourites_url = download_div.find('a').get('href')
+        if not favourites_url:
+            return None, False
+        elif favourites_url.startswith('//'):
+            favourites_url = 'https:' + favourites_url
 
     # Get image details
     submission_details = soup.find('div', class_='submission-id-sub-container')
     if not submission_details:
-        return None
+        return None, False
 
     # Get title
     title_block = submission_details.find('div', class_='submission-title')
@@ -98,10 +169,11 @@ def download_favorite(url, save_path):
     username = username_block.find('a', href=True).text.strip() if username_block else 'unknown_user'
     username = sanitize_filename(username)
 
-    # Get file extension
-    _, ext = os.path.splitext(favourites_url)
+    # Get file extension, handling URLs with query parameters
+    parsed_url = urlparse(favourites_url)
+    _, ext = os.path.splitext(parsed_url.path)
     if not ext:
-        return None  # Exit; not a file
+        return None, False # Exit; not a file
 
     # Create folder for artist if none existent
     if not os.path.exists(os.path.join(save_path, username)):
@@ -112,6 +184,10 @@ def download_favorite(url, save_path):
     filename = f"{title}{ext}"
     actual_save_path = os.path.join(save_path, username, filename)
 
+    # Check if image already exists
+    if os.path.exists(actual_save_path):
+        return actual_save_path, True
+
     # Download the image
     image_response = requests.get(favourites_url)
     image_response.raise_for_status()
@@ -119,7 +195,7 @@ def download_favorite(url, save_path):
     with open(actual_save_path, 'wb') as f:
         f.write(image_response.content)
 
-    return actual_save_path
+    return actual_save_path, False
 
 
 def main():
@@ -133,18 +209,22 @@ def main():
     args = parser.parse_args()
 
     print("FA Fave Downloader")
+    print(f"Version: {__version__}")
+    print("--------------------------------")
+    print("Downloading favourites from", args.username)
     save_path = args.save_path
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    urls = get_favorite_image_urls(args.username)
-    print(f"Found {len(urls)} image URLs:")
-    for url in urls[:5]:  # Print first 5
-        print(url)
-
     # Check if provided path is real, and creates if not
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
+
+    # Check first page for favourites
+    urls = get_favorite_image_urls(args.username)
+    if len(urls) == 0:
+        print(f"No favourite images found for {args.username}")
+        exit(0)
 
     # Downloads the images to the save path
     i = 0
@@ -152,12 +232,16 @@ def main():
         i += 1
         print(f"Downloading image {i}/{len(urls)} from {url} ...")
 
-        result = download_favorite(url, save_path)
-        if result:
+        result, duplicate = download_favorite(url, save_path)
+        if duplicate:
+            print(f"Image already downloaded image {i}/{len(urls)}: {result}")
+        elif result:
             print(f"Downloaded image {i}/{len(urls)}: {result}")
         else:
             print(f"Failed to download image {i}/{len(urls)}: {url}")
 
+    print("Download complete.")
 
+# For debugging
 if __name__ == "__main__":
     main()
