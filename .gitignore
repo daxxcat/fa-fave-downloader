@@ -211,3 +211,6 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Debug outut
+debug.log
+**/output/

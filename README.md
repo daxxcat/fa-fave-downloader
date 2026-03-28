@@ -23,7 +23,19 @@ A utility to download your favourites from FurAffinity
 pip install -e .
 ```
 
+## Development
+- Run tests: `python -m pytest`
+- Lint code: `flake8 ./src`
+- Build: `python -m build`
+
 ## Usage
+Note you will need python 3.10 or higher to run the tool.
+
+To install the tool from PyPI:
+```bash
+pip install fa-fave-downloader
+```
+
 After installation, run the tool:
 ```bash
 fa-fave-downloader -h
@@ -39,8 +51,3 @@ options:
   --save-path, -p SAVE_PATH
                         Directory to save images (default: ./save)
 ```
-
-## Development
-- Run tests: `python -m pytest`
-- Lint code: `flake8 ./src`
-- Build: `python -m build`
