@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
-from __init__ import __version__
+from .__init__ import __version__
 
 # Constants
 FA_URL = "https://www.furaffinity.net"
@@ -241,7 +241,3 @@ def main():
             print(f"Failed to download image {i}/{len(urls)}: {url}")
 
     print("Download complete.")
-
-# For debugging
-if __name__ == "__main__":
-    main()
