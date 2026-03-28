@@ -1,6 +1,9 @@
 # fa-fave-downloader
 A utility to download your favourites from FurAffinity
 
+[![Build and Test](https://github.com/daxxcat/fa-fave-downloader/actions/workflows/python-package.yml/badge.svg?branch=main)](https://github.com/daxxcat/fa-fave-downloader/actions/workflows/python-package.yml) [![Publish Python Package](https://github.com/daxxcat/fa-fave-downloader/actions/workflows/python-publish.yml/badge.svg?branch=main)](https://github.com/daxxcat/fa-fave-downloader/actions/workflows/python-publish.yml)
+
+
 ## Installation
 
 ### From Source
