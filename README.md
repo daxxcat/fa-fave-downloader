@@ -39,8 +39,7 @@ pip install fa-fave-downloader
 After installation, run the tool:
 ```bash
 fa-fave-downloader -h
-
-usage: fa-fave-downloader [-h] --username USERNAME [--save-path SAVE_PATH]
+usage: fa-fave-downloader [-h] --username USERNAME [--save-path SAVE_PATH] [--cookie COOKIE] [--version]
 
 FurAffinity favourite downloader
 
@@ -50,4 +49,18 @@ options:
                         REQUIRED: Fur Affinity username to download favorites from
   --save-path, -p SAVE_PATH
                         Directory to save images (default: ./save)
+  --cookie, -c COOKIE   Optional: path to your FA cookie file for authenticated access
+  --version             show program's version number and exit
+```
+
+### Authenticated Sessions
+Some images require an authenticated session to download. To use an authenticated session, you will need to export your 
+FurAffinity session cookies as Netscape formatted cookies file. There are plugins for:
+* [Chrome](https://chromewebstore.google.com/detail/cookie-exporter/fhnmmidekmgocpjdceeffppcodigillk)
+* [Firefox](https://addons.mozilla.org/en-US/firefox/addon/export-cookies-txt/)
+* [Edge](https://microsoftedge.microsoft.com/addons/detail/cookiemanager-cookie-ed/mmegchnodbbdfhhccbnnbalnedndcbil)
+
+Once you have the cookies file, you can include it with the download command:
+```bash
+fa-fave-downloader -u yourusername -c /path/to/cookies.txt
 ```
