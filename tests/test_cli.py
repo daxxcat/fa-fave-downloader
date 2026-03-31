@@ -4,7 +4,7 @@ import os
 import tempfile
 from fa_fave_downloader.cli import (
     sanitize_filename, get_favorite_image_urls, download_favorite, main,
-    get_favorite_image_urls_inner, get_next_page_url
+    get_favorite_image_urls_inner, get_next_page_url, load_cookies
 )
 
 
@@ -31,7 +31,85 @@ class TestCli(unittest.TestCase):
         self.assertEqual(sanitize_filename("test@#$%^&*"), "test_______")
         self.assertEqual(sanitize_filename("test-file_name"), "test-file_name")
 
-    # ==================== get_favorite_image_urls_inner tests ====================
+    # ==================== load_cookies tests ====================
+    def test_load_cookies_file_not_found(self):
+        """Test that load_cookies returns None when file doesn't exist."""
+        result = load_cookies("/nonexistent/path/to/cookies.txt")
+        self.assertIsNone(result)
+
+    def test_load_cookies_none_argument(self):
+        """Test that load_cookies returns None when given None argument."""
+        result = load_cookies(None)
+        self.assertIsNone(result)
+
+    def test_load_cookies_valid_netscape_format(self):
+        """Test loading cookies from a valid Netscape format file."""
+        netscape_content = """.furaffinity.net\tTRUE\t/\tTRUE\t1704067200\ta\tcookie_value_a
+.furaffinity.net\tTRUE\t/\tTRUE\t1704067200\tb\tcookie_value_b
+"""
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            f.write(netscape_content)
+            temp_file = f.name
+        
+        try:
+            result = load_cookies(temp_file)
+            expected = {
+                'a': 'cookie_value_a',
+                'b': 'cookie_value_b'
+            }
+            self.assertEqual(result, expected)
+        finally:
+            os.unlink(temp_file)
+
+    def test_load_cookies_with_comments(self):
+        """Test that load_cookies skips comment lines in Netscape format."""
+        netscape_content = """# This is a comment
+# Netscape HTTP Cookie File
+.furaffinity.net\tTRUE\t/\tTRUE\t1704067200\ta\tcookie_value_a
+
+.furaffinity.net\tTRUE\t/\tTRUE\t1704067200\tb\tcookie_value_b
+"""
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            f.write(netscape_content)
+            temp_file = f.name
+        
+        try:
+            result = load_cookies(temp_file)
+            expected = {
+                'a': 'cookie_value_a',
+                'b': 'cookie_value_b'
+            }
+            self.assertEqual(result, expected)
+        finally:
+            os.unlink(temp_file)
+
+    def test_load_cookies_empty_file(self):
+        """Test that load_cookies returns None for an empty cookies file."""
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            temp_file = f.name
+        
+        try:
+            result = load_cookies(temp_file)
+            self.assertIsNone(result)
+        finally:
+            os.unlink(temp_file)
+
+    def test_load_cookies_only_comments(self):
+        """Test that load_cookies returns None when file contains only comments."""
+        netscape_content = """# This is a comment
+# Another comment
+"""
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            f.write(netscape_content)
+            temp_file = f.name
+        
+        try:
+            result = load_cookies(temp_file)
+            self.assertIsNone(result)
+        finally:
+            os.unlink(temp_file)
+
+
     def test_get_favorite_image_urls_inner(self):
         """Test the inner helper function that extracts URLs from a gallery favorites section."""
         from bs4 import BeautifulSoup
@@ -83,7 +161,7 @@ class TestCli(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        next_url = get_next_page_url("https://www.furaffinity.net/favorites/testuser/")
+        next_url = get_next_page_url("https://www.furaffinity.net/favorites/testuser/", cookies=None)
         self.assertEqual(next_url, "https://www.furaffinity.net/favorites/testuser/12345/next")
 
     @patch('fa_fave_downloader.cli.requests.get')
@@ -94,7 +172,7 @@ class TestCli(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        next_url = get_next_page_url("https://www.furaffinity.net/favorites/testuser/")
+        next_url = get_next_page_url("https://www.furaffinity.net/favorites/testuser/", cookies=None)
         self.assertIsNone(next_url)
 
     @patch('fa_fave_downloader.cli.requests.get')
@@ -111,7 +189,7 @@ class TestCli(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        next_url = get_next_page_url("https://www.furaffinity.net/favorites/testuser/")
+        next_url = get_next_page_url(url="https://www.furaffinity.net/favorites/testuser/", cookies=None)
         self.assertEqual(next_url, "https://www.furaffinity.net/favorites/testuser/12345/next")
 
     # ==================== get_favorite_image_urls tests ====================
@@ -134,7 +212,7 @@ class TestCli(unittest.TestCase):
         mock_get.return_value = mock_response
         mock_get_next.return_value = None  # No next page
 
-        urls = get_favorite_image_urls("testuser")
+        urls = get_favorite_image_urls(username="testuser", cookies=None)
         expected = [
             "https://www.furaffinity.net/view/123/",
             "https://www.furaffinity.net/view/456/",
@@ -152,7 +230,7 @@ class TestCli(unittest.TestCase):
         mock_get.return_value = mock_response
         mock_get_next.return_value = None
 
-        urls = get_favorite_image_urls("testuser")
+        urls = get_favorite_image_urls(username="testuser", cookies=None)
         self.assertEqual(urls, [])
 
     @patch('fa_fave_downloader.cli.requests.get')
@@ -191,7 +269,7 @@ class TestCli(unittest.TestCase):
             None
         ]
 
-        urls = get_favorite_image_urls("testuser")
+        urls = get_favorite_image_urls(username="testuser", cookies=None)
         expected = [
             "https://www.furaffinity.net/view/123/",
             "https://www.furaffinity.net/view/456/",
@@ -228,7 +306,7 @@ class TestCli(unittest.TestCase):
         mock_image_response.content = b'fake image data'
         mock_image_response.raise_for_status.return_value = None
 
-        def mock_get_side_effect(url):
+        def mock_get_side_effect(url, cookies=None):
             if 'view' in url:
                 return mock_page_response
             else:
@@ -238,7 +316,7 @@ class TestCli(unittest.TestCase):
         mock_exists.return_value = False
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            result, is_duplicate = download_favorite("https://www.furaffinity.net/view/123/", temp_dir)
+            result, is_duplicate = download_favorite(url="https://www.furaffinity.net/view/123/", save_path=temp_dir, cookies=None)
             expected_path = os.path.join(temp_dir, "Artist", "Test-Title.jpg")
             self.assertEqual(result, expected_path)
             self.assertFalse(is_duplicate)
@@ -251,7 +329,7 @@ class TestCli(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        result, is_duplicate = download_favorite("https://www.furaffinity.net/view/123/", "/tmp")
+        result, is_duplicate = download_favorite(url="https://www.furaffinity.net/view/123/", save_path="/tmp", cookies=None)
         self.assertIsNone(result)
         self.assertFalse(is_duplicate)
 
@@ -263,7 +341,7 @@ class TestCli(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        result, is_duplicate = download_favorite("https://www.furaffinity.net/view/123/", "/tmp")
+        result, is_duplicate = download_favorite(url="https://www.furaffinity.net/view/123/", save_path="/tmp", cookies=None)
         self.assertIsNone(result)
         self.assertFalse(is_duplicate)
 
@@ -290,7 +368,7 @@ class TestCli(unittest.TestCase):
         mock_image_response.content = b'image data'
         mock_image_response.raise_for_status.return_value = None
 
-        def mock_get_side_effect(url):
+        def mock_get_side_effect(url, cookies=None):
             if 'view' in url:
                 return mock_page_response
             else:
@@ -301,7 +379,8 @@ class TestCli(unittest.TestCase):
         with patch('fa_fave_downloader.cli.os.path.exists', return_value=False):
             with patch('fa_fave_downloader.cli.os.makedirs'):
                 with patch('builtins.open', mock_open()):
-                    result, is_duplicate = download_favorite("https://www.furaffinity.net/view/123/", "/tmp")
+                    result, is_duplicate = download_favorite(url="https://www.furaffinity.net/view/123/",
+                                                             save_path="/tmp", cookies=None)
                     self.assertIsNotNone(result)
                     self.assertFalse(is_duplicate)
 
@@ -330,7 +409,8 @@ class TestCli(unittest.TestCase):
         mock_exists.side_effect = [False, True]  # First False for dir, then True for file
 
         with patch('fa_fave_downloader.cli.os.makedirs'):
-            result, is_duplicate = download_favorite("https://www.furaffinity.net/view/123/", "/tmp")
+            result, is_duplicate = download_favorite(url="https://www.furaffinity.net/view/123/",
+                                                     save_path="/tmp", cookies=None)
             self.assertIsNotNone(result)
             self.assertTrue(is_duplicate)
 
@@ -356,35 +436,40 @@ class TestCli(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        result, is_duplicate = download_favorite("https://www.furaffinity.net/view/123/", "/tmp")
+        result, is_duplicate = download_favorite(url="https://www.furaffinity.net/view/123/",
+                                                 save_path="/tmp", cookies=None)
         self.assertIsNone(result)
         self.assertFalse(is_duplicate)
 
     # ==================== main function tests ====================
     @patch('fa_fave_downloader.cli.argparse.ArgumentParser.parse_args')
+    @patch('fa_fave_downloader.cli.load_cookies')
     @patch('fa_fave_downloader.cli.get_favorite_image_urls')
     @patch('fa_fave_downloader.cli.download_favorite')
     @patch('fa_fave_downloader.cli.os.path.exists')
     @patch('fa_fave_downloader.cli.os.makedirs')
-    def test_main(self, mock_makedirs, mock_exists, mock_download, mock_get_urls, mock_parse_args):
+    def test_main(self, mock_makedirs, mock_exists, mock_download, mock_get_urls, mock_load_cookies, mock_parse_args):
         """Test the main CLI function to ensure it parses arguments and calls download functions."""
-        mock_parse_args.return_value = MagicMock(username='testuser', save_path='/tmp')
+        mock_parse_args.return_value = MagicMock(username='testuser', save_path='/tmp', cookie=None)
+        mock_load_cookies.return_value = None
         mock_get_urls.return_value = ["url1", "url2"]
         mock_download.side_effect = [("path1", False), ("path2", False)]
         mock_exists.return_value = False
 
         main()
 
-        mock_get_urls.assert_called_once_with('testuser')
+        mock_get_urls.assert_called_once()
         self.assertEqual(mock_download.call_count, 2)
 
     @patch('fa_fave_downloader.cli.argparse.ArgumentParser.parse_args')
+    @patch('fa_fave_downloader.cli.load_cookies')
     @patch('fa_fave_downloader.cli.get_favorite_image_urls')
     @patch('fa_fave_downloader.cli.os.path.exists')
     @patch('fa_fave_downloader.cli.os.makedirs')
-    def test_main_no_favorites(self, mock_makedirs, mock_exists, mock_get_urls, mock_parse_args):
+    def test_main_no_favorites(self, mock_makedirs, mock_exists, mock_get_urls, mock_load_cookies, mock_parse_args):
         """Test that main exits gracefully when no favorites are found."""
-        mock_parse_args.return_value = MagicMock(username='testuser', save_path='/tmp')
+        mock_parse_args.return_value = MagicMock(username='testuser', save_path='/tmp', cookie=None)
+        mock_load_cookies.return_value = None
         mock_get_urls.return_value = []
         mock_exists.return_value = True
 
@@ -392,13 +477,15 @@ class TestCli(unittest.TestCase):
             main()
 
     @patch('fa_fave_downloader.cli.argparse.ArgumentParser.parse_args')
+    @patch('fa_fave_downloader.cli.load_cookies')
     @patch('fa_fave_downloader.cli.get_favorite_image_urls')
     @patch('fa_fave_downloader.cli.download_favorite')
     @patch('fa_fave_downloader.cli.os.path.exists')
     @patch('fa_fave_downloader.cli.os.makedirs')
-    def test_main_with_duplicate_files(self, mock_makedirs, mock_exists, mock_download, mock_get_urls, mock_parse_args):
+    def test_main_with_duplicate_files(self, mock_makedirs, mock_exists, mock_download, mock_get_urls, mock_load_cookies, mock_parse_args):
         """Test main handling of duplicate files."""
-        mock_parse_args.return_value = MagicMock(username='testuser', save_path='/tmp')
+        mock_parse_args.return_value = MagicMock(username='testuser', save_path='/tmp', cookie=None)
+        mock_load_cookies.return_value = None
         mock_get_urls.return_value = ["url1", "url2"]
         mock_download.side_effect = [("path1", True), ("path2", False)]  # First is duplicate
         mock_exists.return_value = False
@@ -406,7 +493,42 @@ class TestCli(unittest.TestCase):
         main()
 
         self.assertEqual(mock_download.call_count, 2)
-        self.assertEqual(mock_download.call_count, 2)
+
+    @patch('fa_fave_downloader.cli.argparse.ArgumentParser.parse_args')
+    @patch('fa_fave_downloader.cli.load_cookies')
+    @patch('fa_fave_downloader.cli.get_favorite_image_urls')
+    @patch('fa_fave_downloader.cli.download_favorite')
+    @patch('fa_fave_downloader.cli.os.path.exists')
+    @patch('fa_fave_downloader.cli.os.makedirs')
+    def test_main_with_cookies(self, mock_makedirs, mock_exists, mock_download, mock_get_urls, mock_load_cookies, mock_parse_args):
+        """Test main function with cookies loaded from file."""
+        mock_cookies = {'a': 'cookie_a', 'b': 'cookie_b'}
+        mock_parse_args.return_value = MagicMock(username='testuser', save_path='/tmp', cookie='/path/to/cookies.txt')
+        mock_load_cookies.return_value = mock_cookies
+        mock_get_urls.return_value = ["url1"]
+        mock_download.return_value = ("path1", False)
+        mock_exists.return_value = False
+
+        main()
+
+        mock_load_cookies.assert_called_once_with(cookie_file='/path/to/cookies.txt')
+        mock_get_urls.assert_called_once()
+        self.assertEqual(mock_download.call_count, 1)
+
+    @patch('fa_fave_downloader.cli.argparse.ArgumentParser.parse_args')
+    @patch('fa_fave_downloader.cli.load_cookies')
+    @patch('fa_fave_downloader.cli.get_favorite_image_urls')
+    @patch('fa_fave_downloader.cli.os.path.exists')
+    @patch('fa_fave_downloader.cli.os.makedirs')
+    def test_main_with_invalid_cookies(self, mock_makedirs, mock_exists, mock_get_urls, mock_load_cookies, mock_parse_args):
+        """Test main function when cookie file cannot be loaded."""
+        mock_parse_args.return_value = MagicMock(username='testuser', save_path='/tmp', cookie='/path/to/invalid_cookies.txt')
+        mock_load_cookies.return_value = None
+        mock_get_urls.return_value = []
+        mock_exists.return_value = False
+
+        with self.assertRaises(SystemExit):
+            main()
 
 
 if __name__ == "__main__":
